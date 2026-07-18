@@ -130,7 +130,6 @@
     const draft = new Date(baseline);
     if (unit === 'hour') draft.setHours(value);
     if (unit === 'minute') draft.setMinutes(value);
-    if (unit === 'second') draft.setSeconds(value);
     timeOffsetMs = draft.getTime() - Date.now();
     render(draft);
   }
@@ -205,11 +204,10 @@
     hitArea.addEventListener('pointercancel', endDrag);
   })();
 
-  // ---------- Drag the digital minutes ----------
+  // ---------- Drag the digital hours / minutes ----------
   // Seconds are shown but not draggable, matching the analog second hand,
   // which just sweeps for show.
-  (() => {
-    const el = digiM;
+  function makeDigitDraggable(el, unit, getValue) {
     let baseline = null;
     let startY = 0;
     let startValue = 0;
@@ -220,7 +218,7 @@
       isDragging = true;
       baseline = displayNow();
       startY = e.clientY;
-      startValue = baseline.getMinutes();
+      startValue = getValue(baseline);
       el.classList.add('dragging');
       el.setPointerCapture(e.pointerId);
     });
@@ -229,7 +227,7 @@
       if (!baseline || !el.hasPointerCapture(e.pointerId)) return;
       const deltaY = startY - e.clientY; // up = positive = increase
       const steps = Math.trunc(deltaY / PX_PER_STEP);
-      applyDraft(baseline, 'minute', startValue + steps);
+      applyDraft(baseline, unit, startValue + steps);
     });
 
     const endDrag = (e) => {
@@ -241,7 +239,10 @@
     };
     el.addEventListener('pointerup', endDrag);
     el.addEventListener('pointercancel', endDrag);
-  })();
+  }
+
+  makeDigitDraggable(digiH, 'hour', (d) => d.getHours());
+  makeDigitDraggable(digiM, 'minute', (d) => d.getMinutes());
 
   // ---------- Theme ----------
   const THEME_KEY = 'hora-catalana-theme';

@@ -1,0 +1,276 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f4f1ea;
+  --bg-elevated: #ffffff;
+  --ink: #1c1b1f;
+  --ink-soft: #5c5a63;
+  --accent: #8a1538;
+  --accent-soft: #c9a15a;
+  --ring: #1c1b1f;
+  --shadow: 0 12px 40px -12px rgba(28, 27, 31, 0.25);
+  --radius: 20px;
+  --font-display: ui-serif, Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+  --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16151a;
+    --bg-elevated: #201f26;
+    --ink: #f2efe9;
+    --ink-soft: #a8a5b0;
+    --accent: #e6a4b4;
+    --accent-soft: #d8b978;
+    --ring: #f2efe9;
+    --shadow: 0 12px 40px -12px rgba(0, 0, 0, 0.6);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16151a;
+  --bg-elevated: #201f26;
+  --ink: #f2efe9;
+  --ink-soft: #a8a5b0;
+  --accent: #e6a4b4;
+  --accent-soft: #d8b978;
+  --ring: #f2efe9;
+  --shadow: 0 12px 40px -12px rgba(0, 0, 0, 0.6);
+}
+:root[data-theme="light"] {
+  --bg: #f4f1ea;
+  --bg-elevated: #ffffff;
+  --ink: #1c1b1f;
+  --ink-soft: #5c5a63;
+  --accent: #8a1538;
+  --accent-soft: #c9a15a;
+  --ring: #1c1b1f;
+  --shadow: 0 12px 40px -12px rgba(28, 27, 31, 0.25);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  display: flex;
+  flex-direction: column;
+  transition: background-color 0.4s ease, color 0.4s ease;
+  overflow-x: hidden;
+}
+
+a { color: inherit; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(14px, env(safe-area-inset-top)) 18px 10px;
+  gap: 8px;
+}
+
+.brand {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+}
+
+.icon-btn {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--ink) 15%, transparent);
+  background: var(--bg-elevated);
+  color: var(--ink);
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.2s ease;
+}
+.icon-btn:hover { transform: translateY(-1px); }
+.icon-btn:active { transform: translateY(0); }
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px 40px;
+  text-align: center;
+  gap: 28px;
+}
+
+.clock-face {
+  width: min(46vw, 220px);
+  height: min(46vw, 220px);
+  filter: drop-shadow(var(--shadow));
+}
+.clock-face .rim { fill: var(--bg-elevated); stroke: color-mix(in srgb, var(--ink) 12%, transparent); stroke-width: 2; }
+.clock-face .tick { stroke: var(--ink-soft); stroke-width: 2; stroke-linecap: round; }
+.clock-face .tick.major { stroke: var(--ink); stroke-width: 3; }
+.clock-face .hand { stroke-linecap: round; transform-origin: 100px 100px; }
+.clock-face .hand.hour { stroke: var(--ink); stroke-width: 6; }
+.clock-face .hand.minute { stroke: var(--ink); stroke-width: 4; }
+.clock-face .hand.second { stroke: var(--accent); stroke-width: 2; }
+.clock-face .pivot { fill: var(--accent); }
+
+.digital-time {
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: clamp(1.4rem, 5vw, 2rem);
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.phrase-wrap {
+  max-width: 720px;
+  min-height: clamp(3.2em, 22vw, 4.4em);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.phrase {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(1.9rem, 7vw, 3.4rem);
+  line-height: 1.15;
+  color: var(--ink);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.phrase .accent { color: var(--accent); }
+
+.phrase.swap {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.date-line {
+  font-size: 1rem;
+  color: var(--ink-soft);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.chip-btn {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--ink) 15%, transparent);
+  background: var(--bg-elevated);
+  color: var(--ink);
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-family: var(--font-ui);
+  font-size: 0.88rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+.chip-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+.chip-btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: white;
+  border-color: transparent;
+}
+.chip-btn[hidden] { display: none; }
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4caf7d;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #4caf7d 25%, transparent);
+}
+.status-dot.offline { background: #c9773b; box-shadow: 0 0 0 3px color-mix(in srgb, #c9773b 25%, transparent); }
+
+footer {
+  text-align: center;
+  padding: 10px 16px max(16px, env(safe-area-inset-bottom));
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translate(-50%, 12px);
+  background: var(--ink);
+  color: var(--bg);
+  padding: 12px 18px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  z-index: 20;
+  max-width: calc(100vw - 32px);
+}
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+.toast button {
+  appearance: none;
+  border: none;
+  background: var(--accent-soft);
+  color: #1c1b1f;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Nightstand / kiosk mode: strip the chrome, blow up the phrase */
+body.nightstand .topbar,
+body.nightstand .actions,
+body.nightstand .status-row,
+body.nightstand footer,
+body.nightstand .clock-face,
+body.nightstand .date-line {
+  display: none;
+}
+body.nightstand main { padding: 0; gap: 0; }
+body.nightstand .phrase { font-size: clamp(2.6rem, 11vw, 6.5rem); }
+body.nightstand .digital-time { font-size: clamp(2rem, 8vw, 3.2rem); }
+body.nightstand { cursor: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .phrase, .toast { transition: none; }
+}

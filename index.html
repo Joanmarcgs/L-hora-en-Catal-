@@ -22,22 +22,26 @@
 <div class="topbar">
   <span class="brand">L'hora en català</span>
   <div class="toolbar">
-    <button id="install-btn" class="icon-btn" type="button" title="Instal·la l'app" hidden>⬇️</button>
-    <button id="theme-toggle" class="icon-btn" type="button" title="Canvia el tema">🌓</button>
+    <button id="install-btn" class="icon-btn" type="button" title="Instal·la l'app" hidden>↓</button>
+    <button id="theme-toggle" class="icon-btn theme-btn" type="button" title="Canvia el tema">NIT</button>
   </div>
 </div>
 
 <main>
-  <svg class="clock-face" viewBox="0 0 200 200" role="img" aria-hidden="true">
+  <svg class="clock-face" viewBox="0 0 200 200" role="group" aria-label="Rellotge analògic, arrossega les agulles per canviar l'hora">
     <circle class="rim" cx="100" cy="100" r="96" />
     <g class="ticks"></g>
-    <line id="hand-hour" class="hand hour" x1="100" y1="100" x2="100" y2="55" />
-    <line id="hand-minute" class="hand minute" x1="100" y1="100" x2="100" y2="35" />
-    <line id="hand-second" class="hand second" x1="100" y1="100" x2="100" y2="30" />
-    <circle class="pivot" cx="100" cy="100" r="4" />
+    <g class="numbers"></g>
+    <line id="hand-hour" class="hand hour" x1="100" y1="100" x2="100" y2="58" />
+    <line id="hand-minute" class="hand minute" x1="100" y1="100" x2="100" y2="32" />
+    <line id="hand-second" class="hand second" x1="100" y1="100" x2="100" y2="10" />
+    <circle class="pivot" cx="100" cy="100" r="5" />
+    <circle class="hit-area" cx="100" cy="100" r="96" />
   </svg>
 
-  <div id="digital-time" class="digital-time" aria-hidden="true">--:--:--</div>
+  <div id="digital-time" class="digital-time">
+    <span id="digi-h" class="digi-seg">--</span><span class="digi-seg">:</span><span id="digi-m" class="digi-seg draggable" data-unit="minute" title="Arrossega amunt/avall per canviar els minuts">--</span><span class="digi-seg">:</span><span id="digi-s" class="digi-seg draggable" data-unit="second" title="Arrossega amunt/avall per canviar els segons">--</span>
+  </div>
 
   <div class="phrase-wrap">
     <p id="phrase" class="phrase" aria-live="polite">Un moment…</p>
@@ -46,10 +50,11 @@
   <div id="date-line" class="date-line"></div>
 
   <div class="actions">
-    <button id="notify-toggle" class="chip-btn" type="button" aria-pressed="false">🔕 Avisa cada quart</button>
-    <button id="share-btn" class="chip-btn" type="button">📤 Comparteix</button>
-    <button id="copy-btn" class="chip-btn" type="button">📋 Copia</button>
-    <button id="nightstand-btn" class="chip-btn" type="button">🌙 Mode nit</button>
+    <button id="reset-time-btn" class="chip-btn reset-time" type="button" hidden>Hora real</button>
+    <button id="notify-toggle" class="chip-btn" type="button" aria-pressed="false">Avisa cada quart</button>
+    <button id="share-btn" class="chip-btn" type="button">Comparteix</button>
+    <button id="copy-btn" class="chip-btn" type="button">Copia</button>
+    <button id="nightstand-btn" class="chip-btn" type="button">Mode nit</button>
   </div>
 </main>
 

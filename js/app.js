@@ -5,6 +5,9 @@
 
   const phraseEl = $('#phrase');
   const digitalEl = $('#digital-time');
+  const digiH = $('#digi-h');
+  const digiM = $('#digi-m');
+  const digiS = $('#digi-s');
   const dateEl = $('#date-line');
   const statusDot = $('#status-dot');
   const statusText = $('#status-text');
@@ -14,9 +17,11 @@
   const shareBtn = $('#share-btn');
   const copyBtn = $('#copy-btn');
   const nightstandBtn = $('#nightstand-btn');
+  const resetTimeBtn = $('#reset-time-btn');
   const toast = $('#toast');
   const toastMsg = $('#toast-msg');
   const toastAction = $('#toast-action');
+  const clockFace = $('.clock-face');
 
   const hourHand = $('#hand-hour');
   const minuteHand = $('#hand-minute');
@@ -28,19 +33,24 @@
     month: 'long',
   });
 
-  // ---------- Clock face ticks ----------
+  const pad2 = (n) => String(n).padStart(2, '0');
+
+  // ---------- Clock face: ticks + hour numbers ----------
+  const SVG_NS = 'http://www.w3.org/2000/svg';
   const ticksGroup = $('.clock-face .ticks');
+  const numbersGroup = $('.clock-face .numbers');
+
   if (ticksGroup) {
     for (let i = 0; i < 60; i++) {
       const angle = (i * 6 * Math.PI) / 180;
       const major = i % 5 === 0;
       const outer = 90;
-      const inner = major ? 78 : 84;
+      const inner = major ? 80 : 85;
       const x1 = 100 + outer * Math.sin(angle);
       const y1 = 100 - outer * Math.cos(angle);
       const x2 = 100 + inner * Math.sin(angle);
       const y2 = 100 - inner * Math.cos(angle);
-      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      const line = document.createElementNS(SVG_NS, 'line');
       line.setAttribute('class', major ? 'tick major' : 'tick');
       line.setAttribute('x1', x1.toFixed(2));
       line.setAttribute('y1', y1.toFixed(2));
@@ -50,14 +60,36 @@
     }
   }
 
-  // ---------- Clock ----------
+  if (numbersGroup) {
+    for (let n = 1; n <= 12; n++) {
+      const angle = (n * 30 * Math.PI) / 180;
+      const r = 68;
+      const x = 100 + r * Math.sin(angle);
+      const y = 100 - r * Math.cos(angle);
+      const text = document.createElementNS(SVG_NS, 'text');
+      text.setAttribute('class', 'num');
+      text.setAttribute('x', x.toFixed(2));
+      text.setAttribute('y', y.toFixed(2));
+      text.textContent = String(n);
+      numbersGroup.appendChild(text);
+    }
+  }
+
+  // ---------- Time state ----------
+  // timeOffsetMs shifts real wall-clock time so the display can be dragged to
+  // any moment; it keeps ticking forward from there until reset to 0.
+  let timeOffsetMs = 0;
+  const displayNow = () => new Date(Date.now() + timeOffsetMs);
+
   let lastPhrase = '';
 
-  function tick() {
-    const now = new Date();
-    const phrase = catalanTimePhrase(now);
-    digitalEl.textContent = digitalTime(now) + ':' + String(now.getSeconds()).padStart(2, '0');
-    const formattedDate = dateFormatter.format(now);
+  function render(date) {
+    const phrase = catalanTimePhrase(date);
+    digiH.textContent = pad2(date.getHours());
+    digiM.textContent = pad2(date.getMinutes());
+    digiS.textContent = pad2(date.getSeconds());
+
+    const formattedDate = dateFormatter.format(date);
     dateEl.textContent = formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
 
     if (phrase !== lastPhrase) {
@@ -67,19 +99,148 @@
         phraseEl.textContent = phrase;
         requestAnimationFrame(() => phraseEl.classList.remove('swap'));
       });
-      document.title = `${digitalTime(now)} · ${phrase}`;
+      document.title = `${digitalTime(date)} · ${phrase}`;
     }
 
-    const h = now.getHours() % 12;
-    const m = now.getMinutes();
-    const s = now.getSeconds();
+    const h = date.getHours() % 12;
+    const m = date.getMinutes();
+    const s = date.getSeconds();
     hourHand.setAttribute('transform', `rotate(${h * 30 + m * 0.5})`);
     minuteHand.setAttribute('transform', `rotate(${m * 6 + s * 0.1})`);
     secondHand.setAttribute('transform', `rotate(${s * 6})`);
+
+    resetTimeBtn.hidden = timeOffsetMs === 0;
   }
 
-  tick();
-  setInterval(tick, 1000);
+  render(displayNow());
+  setInterval(() => {
+    if (!isDragging) render(displayNow());
+  }, 1000);
+
+  resetTimeBtn.addEventListener('click', () => {
+    timeOffsetMs = 0;
+    render(displayNow());
+    showToast("Tornant a l'hora real.");
+  });
+
+  // ---------- Drag-to-set-time: shared helpers ----------
+  let isDragging = false;
+
+  function applyDraft(baseline, unit, value) {
+    const draft = new Date(baseline);
+    if (unit === 'hour') draft.setHours(value);
+    if (unit === 'minute') draft.setMinutes(value);
+    if (unit === 'second') draft.setSeconds(value);
+    timeOffsetMs = draft.getTime() - Date.now();
+    render(draft);
+  }
+
+  // ---------- Drag the analog hands ----------
+  // One zone-based detector on the whole face, rather than per-hand hit
+  // targets: hands frequently overlap (e.g. minute & second both point at
+  // 12 every full minute), which would make whichever hit-line sits on top
+  // in the DOM hijack the drag. Picking a zone by click radius instead is
+  // unambiguous regardless of where the hands currently point.
+  const HAND_LENGTH = { hour: 42, minute: 68, second: 90 };
+
+  function svgPoint(svg, clientX, clientY) {
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const ctm = svg.getScreenCTM();
+    return pt.matrixTransform(ctm.inverse());
+  }
+
+  function zoneForRadius(radius) {
+    if (radius < 15) return null; // too close to the pivot, likely accidental
+    if (radius < (HAND_LENGTH.hour + HAND_LENGTH.minute) / 2) return 'hour';
+    if (radius < (HAND_LENGTH.minute + HAND_LENGTH.second) / 2) return 'minute';
+    return 'second';
+  }
+
+  function angleToUnitValue(angleDeg, unit) {
+    if (unit === 'hour') return Math.round(angleDeg / 30) % 12; // 0..11, 0 = 12
+    return Math.round(angleDeg / 6) % 60; // minute / second, 0..59
+  }
+
+  (() => {
+    const hitArea = $('.clock-face .hit-area');
+    let baseline = null;
+    let unit = null;
+
+    hitArea.addEventListener('pointerdown', (e) => {
+      const pt = svgPoint(clockFace, e.clientX, e.clientY);
+      const radius = Math.hypot(pt.x - 100, pt.y - 100);
+      unit = zoneForRadius(radius);
+      if (!unit) return;
+      e.preventDefault();
+      isDragging = true;
+      baseline = displayNow();
+      clockFace.classList.add('dragging');
+      hitArea.setPointerCapture(e.pointerId);
+    });
+
+    hitArea.addEventListener('pointermove', (e) => {
+      if (!baseline || !hitArea.hasPointerCapture(e.pointerId)) return;
+      const pt = svgPoint(clockFace, e.clientX, e.clientY);
+      const angleDeg = (Math.atan2(pt.x - 100, -(pt.y - 100)) * 180) / Math.PI;
+      const normalized = (angleDeg + 360) % 360;
+      let value = angleToUnitValue(normalized, unit);
+      if (unit === 'hour') {
+        // Preserve which half of the day (AM/PM) we were in.
+        const half = baseline.getHours() < 12 ? 0 : 12;
+        value = half + (value % 12);
+      }
+      applyDraft(baseline, unit, value);
+    });
+
+    const endDrag = (e) => {
+      if (!baseline) return;
+      isDragging = false;
+      baseline = null;
+      unit = null;
+      clockFace.classList.remove('dragging');
+      if (hitArea.hasPointerCapture?.(e.pointerId)) hitArea.releasePointerCapture(e.pointerId);
+    };
+    hitArea.addEventListener('pointerup', endDrag);
+    hitArea.addEventListener('pointercancel', endDrag);
+  })();
+
+  // ---------- Drag the digital minutes / seconds ----------
+  [digiM, digiS].forEach((el) => {
+    const unit = el.dataset.unit;
+    let baseline = null;
+    let startY = 0;
+    let startValue = 0;
+    const PX_PER_STEP = 12;
+
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      isDragging = true;
+      baseline = displayNow();
+      startY = e.clientY;
+      startValue = unit === 'minute' ? baseline.getMinutes() : baseline.getSeconds();
+      el.classList.add('dragging');
+      el.setPointerCapture(e.pointerId);
+    });
+
+    el.addEventListener('pointermove', (e) => {
+      if (!baseline || !el.hasPointerCapture(e.pointerId)) return;
+      const deltaY = startY - e.clientY; // up = positive = increase
+      const steps = Math.trunc(deltaY / PX_PER_STEP);
+      applyDraft(baseline, unit, startValue + steps);
+    });
+
+    const endDrag = (e) => {
+      if (!baseline) return;
+      isDragging = false;
+      baseline = null;
+      el.classList.remove('dragging');
+      if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId);
+    };
+    el.addEventListener('pointerup', endDrag);
+    el.addEventListener('pointercancel', endDrag);
+  });
 
   // ---------- Theme ----------
   const THEME_KEY = 'hora-catalana-theme';
@@ -90,7 +251,9 @@
     } else {
       document.documentElement.removeAttribute('data-theme');
     }
-    themeBtn.textContent = theme === 'dark' ? '☀️' : theme === 'light' ? '🌙' : '🌓';
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const effective = theme === 'dark' || theme === 'light' ? theme : (prefersDark ? 'dark' : 'light');
+    themeBtn.textContent = effective === 'dark' ? 'DIA' : 'NIT';
   }
 
   applyTheme(localStorage.getItem(THEME_KEY));
@@ -108,7 +271,7 @@
   function updateOnlineStatus() {
     const online = navigator.onLine;
     statusDot.classList.toggle('offline', !online);
-    statusText.textContent = online ? 'En línia' : 'Sense connexió · funciona igualment';
+    statusText.textContent = online ? 'En línia' : 'Sense connexió';
   }
   window.addEventListener('online', updateOnlineStatus);
   window.addEventListener('offline', updateOnlineStatus);
@@ -132,7 +295,7 @@
     toast.classList.add('show');
     clearTimeout(toastTimer);
     if (!sticky) {
-      toastTimer = setTimeout(hideToast, 5000);
+      toastTimer = setTimeout(hideToast, 4000);
     }
   }
   function hideToast() {
@@ -164,7 +327,7 @@
     }
   });
 
-  // ---------- Notifications: quarter-hour chime ----------
+  // ---------- Notifications: quarter-hour chime (uses real time, not the draggable one) ----------
   const NOTIFY_KEY = 'hora-catalana-notify';
   let notifyTimer = null;
 
@@ -203,7 +366,7 @@
 
   function setNotifyUI(enabled) {
     notifyBtn.setAttribute('aria-pressed', String(enabled));
-    notifyBtn.textContent = enabled ? '🔔 Avisos actius' : '🔕 Avisa cada quart';
+    notifyBtn.textContent = enabled ? 'Avisos: ON' : 'Avisa cada quart';
   }
 
   async function toggleNotify() {
@@ -243,7 +406,7 @@
 
   // ---------- Share / copy ----------
   shareBtn.addEventListener('click', async () => {
-    const text = `${lastPhrase} (${digitalTime(new Date())})`;
+    const text = `${lastPhrase} (${digitalTime(displayNow())})`;
     if (navigator.share) {
       try {
         await navigator.share({ text, title: "L'hora en català" });
@@ -270,7 +433,7 @@
   }
 
   copyBtn.addEventListener('click', async () => {
-    await copyToClipboard(`${lastPhrase} (${digitalTime(new Date())})`);
+    await copyToClipboard(`${lastPhrase} (${digitalTime(displayNow())})`);
     showToast('Frase copiada!');
   });
 

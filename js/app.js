@@ -76,10 +76,11 @@
   }
 
   // ---------- Time state ----------
-  // timeOffsetMs shifts real wall-clock time so the display can be dragged to
-  // any moment; it keeps ticking forward from there until reset to 0.
-  let timeOffsetMs = 0;
-  const displayNow = () => new Date(Date.now() + timeOffsetMs);
+  // frozenTime holds a manually-set moment: while it's set, the clock (and
+  // its seconds) stops advancing entirely and shows exactly that moment,
+  // until "Hora real" clears it and live ticking resumes.
+  let frozenTime = null;
+  const displayNow = () => frozenTime || new Date();
 
   let lastPhrase = '';
 
@@ -109,16 +110,16 @@
     minuteHand.setAttribute('transform', `rotate(${m * 6 + s * 0.1})`);
     secondHand.setAttribute('transform', `rotate(${s * 6})`);
 
-    resetTimeBtn.hidden = timeOffsetMs === 0;
+    resetTimeBtn.hidden = frozenTime === null;
   }
 
   render(displayNow());
   setInterval(() => {
-    if (!isDragging) render(displayNow());
+    if (!isDragging && !frozenTime) render(displayNow());
   }, 1000);
 
   resetTimeBtn.addEventListener('click', () => {
-    timeOffsetMs = 0;
+    frozenTime = null;
     render(displayNow());
     showToast("Tornant a l'hora real.");
   });
@@ -130,7 +131,7 @@
     const draft = new Date(baseline);
     if (unit === 'hour') draft.setHours(value);
     if (unit === 'minute') draft.setMinutes(value);
-    timeOffsetMs = draft.getTime() - Date.now();
+    frozenTime = draft;
     render(draft);
   }
 

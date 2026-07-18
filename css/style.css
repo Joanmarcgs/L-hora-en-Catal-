@@ -188,7 +188,10 @@ main {
 
 .phrase-wrap {
   max-width: 720px;
-  min-height: clamp(3.2em, 22vw, 4.4em);
+  /* Fixed (not min-) height reserved for the longest possible phrase at up
+     to 3 lines, so the clock above never shifts when the phrase re-wraps. */
+  height: calc(3 * 1.25 * clamp(1.5rem, 6vw, 2.6rem));
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -248,10 +251,15 @@ main {
   color: var(--bg-elevated);
   border-color: var(--ink);
 }
+/* Fixed colors (not theme variables) so this button looks identical in both themes. */
 .chip-btn.reset-time {
-  background: var(--accent-3);
-  color: var(--ink);
+  background: #f2b705;
+  color: #1c1730;
+  border-color: #1c1730;
+  box-shadow: 3px 3px 0 0 #1c1730;
 }
+.chip-btn.reset-time:hover { box-shadow: 4px 4px 0 0 #1c1730; }
+.chip-btn.reset-time:active { box-shadow: 1px 1px 0 0 #1c1730; }
 .chip-btn[hidden] { display: none; }
 
 .status-row {

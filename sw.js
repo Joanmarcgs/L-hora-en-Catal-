@@ -1,5 +1,5 @@
 // Bump on every deploy, together with version.json, to force clients to update.
-const VERSION = '2026.07.18.5';
+const VERSION = '2026.07.18.6';
 const CACHE_NAME = `hora-catalana-${VERSION}`;
 
 const PRECACHE_URLS = [

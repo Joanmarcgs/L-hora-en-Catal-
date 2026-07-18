@@ -107,6 +107,7 @@ a { color: inherit; }
 .icon-btn:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 0 var(--shadow); }
 .icon-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 0 var(--shadow); }
 .theme-btn { width: auto; padding: 0 8px; font-size: 0.65rem; }
+.install-btn { width: auto; padding: 0 10px; font-size: 0.65rem; }
 
 .toolbar { display: flex; gap: 8px; }
 

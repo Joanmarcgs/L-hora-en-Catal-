@@ -129,6 +129,9 @@
     const draft = new Date(baseline);
     if (unit === 'hour') draft.setHours(value);
     if (unit === 'minute') draft.setMinutes(value);
+    // Zero the seconds so the minute hand lands exactly on the minute mark
+    // being set, rather than sitting wherever it was when the drag started.
+    draft.setSeconds(0);
     frozenTime = draft;
     render(draft);
   }

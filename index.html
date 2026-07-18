@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>L'hora en català</title>
 <meta name="description" content="Mostra l'hora dita en català correcte, com 'Dos quarts de cinc'. Funciona sense connexió i s'instal·la com una app." />
-<meta name="theme-color" content="#8a1538" media="(prefers-color-scheme: light)" />
-<meta name="theme-color" content="#16151a" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#e8e3c8" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#150829" media="(prefers-color-scheme: dark)" />
 
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png" />
@@ -39,6 +39,11 @@
     <circle class="hit-area" cx="100" cy="100" r="96" />
   </svg>
 
+  <div class="hand-legend">
+    <span class="legend-item"><span class="swatch hour"></span>Hora</span>
+    <span class="legend-item"><span class="swatch minute"></span>Minut</span>
+  </div>
+
   <div id="digital-time" class="digital-time">
     <span id="digi-h" class="digi-seg draggable" data-unit="hour" title="Arrossega amunt/avall per canviar l'hora">--</span><span class="digi-seg">:</span><span id="digi-m" class="digi-seg draggable" data-unit="minute" title="Arrossega amunt/avall per canviar els minuts">--</span><span class="digi-seg">:</span><span id="digi-s" class="digi-seg">--</span>
   </div>
@@ -54,7 +59,6 @@
     <button id="notify-toggle" class="chip-btn" type="button" aria-pressed="false">Avisa cada quart</button>
     <button id="share-btn" class="chip-btn" type="button">Comparteix</button>
     <button id="copy-btn" class="chip-btn" type="button">Copia</button>
-    <button id="nightstand-btn" class="chip-btn" type="button">Mode nit</button>
   </div>
 </main>
 

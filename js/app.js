@@ -4,7 +4,6 @@
   const $ = (sel) => document.querySelector(sel);
 
   const phraseEl = $('#phrase');
-  const digitalEl = $('#digital-time');
   const digiH = $('#digi-h');
   const digiM = $('#digi-m');
   const digiS = $('#digi-s');
@@ -16,7 +15,6 @@
   const notifyBtn = $('#notify-toggle');
   const shareBtn = $('#share-btn');
   const copyBtn = $('#copy-btn');
-  const nightstandBtn = $('#nightstand-btn');
   const resetTimeBtn = $('#reset-time-btn');
   const toast = $('#toast');
   const toastMsg = $('#toast-msg');
@@ -157,39 +155,48 @@
     return null; // out past the minute hand / on the second hand: not draggable
   }
 
-  function angleToUnitValue(angleDeg, unit) {
-    if (unit === 'hour') return Math.round(angleDeg / 30) % 12; // 0..11, 0 = 12
-    return Math.round(angleDeg / 6) % 60; // minute, 0..59
+  function pointerAngle(e) {
+    const pt = svgPoint(clockFace, e.clientX, e.clientY);
+    const radius = Math.hypot(pt.x - 100, pt.y - 100);
+    const angleDeg = (Math.atan2(pt.x - 100, -(pt.y - 100)) * 180) / Math.PI;
+    return { angle: (angleDeg + 360) % 360, radius };
   }
 
   (() => {
     const hitArea = $('.clock-face .hit-area');
     let baseline = null;
     let unit = null;
+    let startValue = 0;
+    let lastAngle = 0;
+    let totalRotation = 0; // unwrapped degrees turned since drag start, +/- across multiple laps
 
     hitArea.addEventListener('pointerdown', (e) => {
-      const pt = svgPoint(clockFace, e.clientX, e.clientY);
-      const radius = Math.hypot(pt.x - 100, pt.y - 100);
+      const { angle, radius } = pointerAngle(e);
       unit = zoneForRadius(radius);
       if (!unit) return;
       e.preventDefault();
       isDragging = true;
       baseline = displayNow();
+      startValue = unit === 'hour' ? baseline.getHours() : baseline.getMinutes();
+      lastAngle = angle;
+      totalRotation = 0;
       clockFace.classList.add('dragging');
       hitArea.setPointerCapture(e.pointerId);
     });
 
     hitArea.addEventListener('pointermove', (e) => {
       if (!baseline || !hitArea.hasPointerCapture(e.pointerId)) return;
-      const pt = svgPoint(clockFace, e.clientX, e.clientY);
-      const angleDeg = (Math.atan2(pt.x - 100, -(pt.y - 100)) * 180) / Math.PI;
-      const normalized = (angleDeg + 360) % 360;
-      let value = angleToUnitValue(normalized, unit);
-      if (unit === 'hour') {
-        // Preserve which half of the day (AM/PM) we were in.
-        const half = baseline.getHours() < 12 ? 0 : 12;
-        value = half + (value % 12);
-      }
+      const { angle } = pointerAngle(e);
+      // Unwrap: the shortest signed step from the last sample, so spinning
+      // a hand past 12 repeatedly keeps advancing instead of snapping back
+      // to a single lap's 0-59 (or 0-23) value.
+      let step = angle - lastAngle;
+      if (step > 180) step -= 360;
+      if (step < -180) step += 360;
+      totalRotation += step;
+      lastAngle = angle;
+      const degreesPerUnit = unit === 'hour' ? 30 : 6;
+      const value = startValue + Math.round(totalRotation / degreesPerUnit);
       applyDraft(baseline, unit, value);
     });
 
@@ -439,25 +446,6 @@
     await copyToClipboard(`${lastPhrase} (${digitalTime(displayNow())})`);
     showToast('Frase copiada!');
   });
-
-  // ---------- Nightstand / kiosk mode ----------
-  const NIGHTSTAND_KEY = 'hora-catalana-nightstand';
-
-  function setNightstand(on) {
-    document.body.classList.toggle('nightstand', on);
-    localStorage.setItem(NIGHTSTAND_KEY, on ? '1' : '0');
-  }
-  nightstandBtn.addEventListener('click', () => setNightstand(true));
-  document.body.addEventListener('click', (e) => {
-    if (document.body.classList.contains('nightstand') && e.target === document.body) {
-      setNightstand(false);
-    }
-  });
-  document.body.addEventListener('dblclick', () => {
-    if (document.body.classList.contains('nightstand')) setNightstand(false);
-  });
-  const urlWantsNightstand = new URLSearchParams(location.search).get('nightstand') === '1';
-  if (urlWantsNightstand || localStorage.getItem(NIGHTSTAND_KEY) === '1') setNightstand(true);
 
   // ---------- Service worker: register + auto-update ----------
   if ('serviceWorker' in navigator) {

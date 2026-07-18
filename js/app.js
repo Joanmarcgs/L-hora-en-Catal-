@@ -136,12 +136,11 @@
   }
 
   // ---------- Drag the analog hands ----------
-  // One zone-based detector on the whole face, rather than per-hand hit
-  // targets: hands frequently overlap (e.g. minute & second both point at
-  // 12 every full minute), which would make whichever hit-line sits on top
-  // in the DOM hijack the drag. Picking a zone by click radius instead is
-  // unambiguous regardless of where the hands currently point.
-  const HAND_LENGTH = { hour: 42, minute: 68, second: 90 };
+  // Only the hour and minute hands are draggable; the second hand just
+  // sweeps for show. A zone-based detector on the whole face (rather than
+  // per-hand hit targets) picks hour vs. minute by click radius, which
+  // stays unambiguous even when the hands happen to overlap.
+  const HAND_LENGTH = { hour: 42, minute: 68 };
 
   function svgPoint(svg, clientX, clientY) {
     const pt = svg.createSVGPoint();
@@ -154,13 +153,13 @@
   function zoneForRadius(radius) {
     if (radius < 15) return null; // too close to the pivot, likely accidental
     if (radius < (HAND_LENGTH.hour + HAND_LENGTH.minute) / 2) return 'hour';
-    if (radius < (HAND_LENGTH.minute + HAND_LENGTH.second) / 2) return 'minute';
-    return 'second';
+    if (radius < 96) return 'minute';
+    return null; // out past the minute hand / on the second hand: not draggable
   }
 
   function angleToUnitValue(angleDeg, unit) {
     if (unit === 'hour') return Math.round(angleDeg / 30) % 12; // 0..11, 0 = 12
-    return Math.round(angleDeg / 6) % 60; // minute / second, 0..59
+    return Math.round(angleDeg / 6) % 60; // minute, 0..59
   }
 
   (() => {
@@ -206,9 +205,11 @@
     hitArea.addEventListener('pointercancel', endDrag);
   })();
 
-  // ---------- Drag the digital minutes / seconds ----------
-  [digiM, digiS].forEach((el) => {
-    const unit = el.dataset.unit;
+  // ---------- Drag the digital minutes ----------
+  // Seconds are shown but not draggable, matching the analog second hand,
+  // which just sweeps for show.
+  (() => {
+    const el = digiM;
     let baseline = null;
     let startY = 0;
     let startValue = 0;
@@ -219,7 +220,7 @@
       isDragging = true;
       baseline = displayNow();
       startY = e.clientY;
-      startValue = unit === 'minute' ? baseline.getMinutes() : baseline.getSeconds();
+      startValue = baseline.getMinutes();
       el.classList.add('dragging');
       el.setPointerCapture(e.pointerId);
     });
@@ -228,7 +229,7 @@
       if (!baseline || !el.hasPointerCapture(e.pointerId)) return;
       const deltaY = startY - e.clientY; // up = positive = increase
       const steps = Math.trunc(deltaY / PX_PER_STEP);
-      applyDraft(baseline, unit, startValue + steps);
+      applyDraft(baseline, 'minute', startValue + steps);
     });
 
     const endDrag = (e) => {
@@ -240,7 +241,7 @@
     };
     el.addEventListener('pointerup', endDrag);
     el.addEventListener('pointercancel', endDrag);
-  });
+  })();
 
   // ---------- Theme ----------
   const THEME_KEY = 'hora-catalana-theme';

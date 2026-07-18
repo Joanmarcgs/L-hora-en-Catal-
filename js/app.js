@@ -4,7 +4,6 @@
   const $ = (sel) => document.querySelector(sel);
 
   const phraseEl = $('#phrase');
-  const digitalEl = $('#digital-time');
   const digiH = $('#digi-h');
   const digiM = $('#digi-m');
   const digiS = $('#digi-s');
@@ -13,15 +12,21 @@
   const statusText = $('#status-text');
   const themeBtn = $('#theme-toggle');
   const installBtn = $('#install-btn');
-  const notifyBtn = $('#notify-toggle');
   const shareBtn = $('#share-btn');
   const copyBtn = $('#copy-btn');
-  const nightstandBtn = $('#nightstand-btn');
   const resetTimeBtn = $('#reset-time-btn');
   const toast = $('#toast');
   const toastMsg = $('#toast-msg');
   const toastAction = $('#toast-action');
   const clockFace = $('.clock-face');
+  const alarmsBtn = $('#alarms-btn');
+  const alarmsModal = $('#alarms-modal');
+  const alarmsCloseBtn = $('#alarms-close');
+  const alarmsListEl = $('#alarms-list');
+  const alarmsEmptyEl = $('#alarms-empty');
+  const alarmSpinH = $('#alarm-spin-h');
+  const alarmSpinM = $('#alarm-spin-m');
+  const alarmAddBtn = $('#alarm-add-btn');
 
   const hourHand = $('#hand-hour');
   const minuteHand = $('#hand-minute');
@@ -115,7 +120,11 @@
 
   render(displayNow());
   setInterval(() => {
-    if (!isDragging && !frozenTime) render(displayNow());
+    if (!isDragging && !frozenTime) {
+      const now = displayNow();
+      render(now);
+      checkAlarms(now);
+    }
   }, 1000);
 
   resetTimeBtn.addEventListener('click', () => {
@@ -131,6 +140,9 @@
     const draft = new Date(baseline);
     if (unit === 'hour') draft.setHours(value);
     if (unit === 'minute') draft.setMinutes(value);
+    // Zero the seconds so the minute hand lands exactly on the minute mark
+    // being set, rather than sitting wherever it was when the drag started.
+    draft.setSeconds(0);
     frozenTime = draft;
     render(draft);
   }
@@ -157,39 +169,48 @@
     return null; // out past the minute hand / on the second hand: not draggable
   }
 
-  function angleToUnitValue(angleDeg, unit) {
-    if (unit === 'hour') return Math.round(angleDeg / 30) % 12; // 0..11, 0 = 12
-    return Math.round(angleDeg / 6) % 60; // minute, 0..59
+  function pointerAngle(e) {
+    const pt = svgPoint(clockFace, e.clientX, e.clientY);
+    const radius = Math.hypot(pt.x - 100, pt.y - 100);
+    const angleDeg = (Math.atan2(pt.x - 100, -(pt.y - 100)) * 180) / Math.PI;
+    return { angle: (angleDeg + 360) % 360, radius };
   }
 
   (() => {
     const hitArea = $('.clock-face .hit-area');
     let baseline = null;
     let unit = null;
+    let startValue = 0;
+    let lastAngle = 0;
+    let totalRotation = 0; // unwrapped degrees turned since drag start, +/- across multiple laps
 
     hitArea.addEventListener('pointerdown', (e) => {
-      const pt = svgPoint(clockFace, e.clientX, e.clientY);
-      const radius = Math.hypot(pt.x - 100, pt.y - 100);
+      const { angle, radius } = pointerAngle(e);
       unit = zoneForRadius(radius);
       if (!unit) return;
       e.preventDefault();
       isDragging = true;
       baseline = displayNow();
+      startValue = unit === 'hour' ? baseline.getHours() : baseline.getMinutes();
+      lastAngle = angle;
+      totalRotation = 0;
       clockFace.classList.add('dragging');
       hitArea.setPointerCapture(e.pointerId);
     });
 
     hitArea.addEventListener('pointermove', (e) => {
       if (!baseline || !hitArea.hasPointerCapture(e.pointerId)) return;
-      const pt = svgPoint(clockFace, e.clientX, e.clientY);
-      const angleDeg = (Math.atan2(pt.x - 100, -(pt.y - 100)) * 180) / Math.PI;
-      const normalized = (angleDeg + 360) % 360;
-      let value = angleToUnitValue(normalized, unit);
-      if (unit === 'hour') {
-        // Preserve which half of the day (AM/PM) we were in.
-        const half = baseline.getHours() < 12 ? 0 : 12;
-        value = half + (value % 12);
-      }
+      const { angle } = pointerAngle(e);
+      // Unwrap: the shortest signed step from the last sample, so spinning
+      // a hand past 12 repeatedly keeps advancing instead of snapping back
+      // to a single lap's 0-59 (or 0-23) value.
+      let step = angle - lastAngle;
+      if (step > 180) step -= 360;
+      if (step < -180) step += 360;
+      totalRotation += step;
+      lastAngle = angle;
+      const degreesPerUnit = unit === 'hour' ? 30 : 6;
+      const value = startValue + Math.round(totalRotation / degreesPerUnit);
       applyDraft(baseline, unit, value);
     });
 
@@ -330,81 +351,210 @@
     }
   });
 
-  // ---------- Notifications: quarter-hour chime (uses real time, not the draggable one) ----------
-  const NOTIFY_KEY = 'hora-catalana-notify';
-  let notifyTimer = null;
+  // ---------- Alarms ----------
+  // Alarms are checked against real wall-clock time (never the draggable
+  // preview time) and only while the app is open — there's no push server,
+  // so this is best-effort like everything else notification-related here.
+  const ALARMS_KEY = 'hora-catalana-alarms';
 
-  function nextQuarterBoundary(now) {
-    const next = new Date(now);
-    next.setSeconds(0, 0);
-    const minute = next.getMinutes();
-    const add = 15 - (minute % 15);
-    next.setMinutes(minute + add);
-    return next;
+  function loadAlarms() {
+    try {
+      const list = JSON.parse(localStorage.getItem(ALARMS_KEY));
+      return Array.isArray(list) ? list : [];
+    } catch (_) {
+      return [];
+    }
+  }
+  function saveAlarms(list) {
+    localStorage.setItem(ALARMS_KEY, JSON.stringify(list));
   }
 
-  async function fireQuarterNotification() {
-    const phrase = catalanTimePhrase(new Date());
+  function renderAlarmsList() {
+    const alarms = loadAlarms().slice().sort((a, b) => (a.hour * 60 + a.minute) - (b.hour * 60 + b.minute));
+    alarmsListEl.innerHTML = '';
+    alarmsEmptyEl.hidden = alarms.length > 0;
+
+    alarms.forEach((alarm) => {
+      const li = document.createElement('li');
+      li.className = 'alarm-row';
+
+      const time = document.createElement('span');
+      time.className = 'alarm-time';
+      time.textContent = `${pad2(alarm.hour)}:${pad2(alarm.minute)}`;
+
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'chip-btn alarm-toggle';
+      toggle.setAttribute('aria-pressed', String(alarm.enabled));
+      toggle.textContent = alarm.enabled ? 'ON' : 'OFF';
+      toggle.addEventListener('click', () => {
+        const list = loadAlarms();
+        const target = list.find((a) => a.id === alarm.id);
+        if (!target) return;
+        target.enabled = !target.enabled;
+        saveAlarms(list);
+        renderAlarmsList();
+      });
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'icon-btn alarm-delete';
+      del.title = 'Elimina alarma';
+      del.textContent = '×';
+      del.addEventListener('click', () => {
+        saveAlarms(loadAlarms().filter((a) => a.id !== alarm.id));
+        renderAlarmsList();
+      });
+
+      li.append(time, toggle, del);
+      alarmsListEl.appendChild(li);
+    });
+  }
+
+  // ---- Modal open/close ----
+  function onAlarmsModalKeydown(e) {
+    if (e.key === 'Escape') closeAlarmsModal();
+  }
+  function openAlarmsModal() {
+    renderAlarmsList();
+    alarmsModal.hidden = false;
+    document.addEventListener('keydown', onAlarmsModalKeydown);
+  }
+  function closeAlarmsModal() {
+    alarmsModal.hidden = true;
+    document.removeEventListener('keydown', onAlarmsModalKeydown);
+  }
+  alarmsBtn.addEventListener('click', openAlarmsModal);
+  alarmsCloseBtn.addEventListener('click', closeAlarmsModal);
+  alarmsModal.addEventListener('click', (e) => {
+    if (e.target === alarmsModal) closeAlarmsModal();
+  });
+
+  // ---- Drag spinners for the "new alarm" time picker ----
+  function createSpinner(el, { min, max, initial }) {
+    let value = initial;
+    const range = max - min + 1;
+    const draw = () => { el.textContent = pad2(value); };
+    draw();
+
+    let startY = 0;
+    let startValue = 0;
+    const PX_PER_STEP = 12;
+
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      startY = e.clientY;
+      startValue = value;
+      el.classList.add('dragging');
+      el.setPointerCapture(e.pointerId);
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!el.hasPointerCapture(e.pointerId)) return;
+      const deltaY = startY - e.clientY; // up = increase
+      const steps = Math.trunc(deltaY / PX_PER_STEP);
+      value = (((startValue + steps - min) % range) + range) % range + min;
+      draw();
+    });
+    const endDrag = (e) => {
+      el.classList.remove('dragging');
+      if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId);
+    };
+    el.addEventListener('pointerup', endDrag);
+    el.addEventListener('pointercancel', endDrag);
+
+    return { get value() { return value; } };
+  }
+
+  const alarmHourSpinner = createSpinner(alarmSpinH, { min: 0, max: 23, initial: 7 });
+  const alarmMinuteSpinner = createSpinner(alarmSpinM, { min: 0, max: 59, initial: 0 });
+
+  alarmAddBtn.addEventListener('click', async () => {
+    ensureAudioContext(); // unlock audio playback now, on a real user gesture
+    if ('Notification' in window && Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+    const alarms = loadAlarms();
+    alarms.push({
+      id: `a${Date.now()}${Math.floor(Math.random() * 1000)}`,
+      hour: alarmHourSpinner.value,
+      minute: alarmMinuteSpinner.value,
+      enabled: true,
+    });
+    saveAlarms(alarms);
+    renderAlarmsList();
+    showToast('Alarma afegida.');
+  });
+
+  // ---- Alarm sound ----
+  let audioCtx = null;
+  function ensureAudioContext() {
+    if (!audioCtx) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx) audioCtx = new Ctx();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playBeepPattern() {
+    const ctx = ensureAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    [0, 0.25, 0.5].forEach((offset) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.2, now + offset + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.18);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now + offset);
+      osc.stop(now + offset + 0.2);
+    });
+  }
+
+  let alarmSoundInterval = null;
+  let alarmSoundStopTimer = null;
+  function startAlarmSound() {
+    stopAlarmSound();
+    playBeepPattern();
+    alarmSoundInterval = setInterval(playBeepPattern, 2000);
+    alarmSoundStopTimer = setTimeout(stopAlarmSound, 30000); // safety auto-stop
+  }
+  function stopAlarmSound() {
+    if (alarmSoundInterval) { clearInterval(alarmSoundInterval); alarmSoundInterval = null; }
+    if (alarmSoundStopTimer) { clearTimeout(alarmSoundStopTimer); alarmSoundStopTimer = null; }
+  }
+
+  // ---- Firing + scheduling ----
+  async function fireAlarm(alarm, now) {
+    const phrase = catalanTimePhrase(now);
     const reg = await navigator.serviceWorker.getRegistration();
-    if (reg) {
-      reg.showNotification("L'hora en català", {
+    if (reg && 'Notification' in window && Notification.permission === 'granted') {
+      reg.showNotification('⏰ Alarma', {
         body: phrase,
         icon: 'icons/icon-192.png',
         badge: 'icons/icon-192.png',
-        tag: 'quart-hora',
+        tag: `alarm-${alarm.id}`,
       });
     }
+    startAlarmSound();
+    if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300]);
+    showToast(`Alarma: ${phrase}`, { actionLabel: 'Para', onAction: stopAlarmSound, sticky: true });
   }
 
-  function scheduleNextChime() {
-    clearTimeout(notifyTimer);
-    const now = new Date();
-    const next = nextQuarterBoundary(now);
-    const delay = next.getTime() - now.getTime();
-    notifyTimer = setTimeout(async () => {
-      await fireQuarterNotification();
-      scheduleNextChime();
-    }, delay);
-  }
-
-  function setNotifyUI(enabled) {
-    notifyBtn.setAttribute('aria-pressed', String(enabled));
-    notifyBtn.textContent = enabled ? 'Avisos: ON' : 'Avisa cada quart';
-  }
-
-  async function toggleNotify() {
-    const enabled = localStorage.getItem(NOTIFY_KEY) === '1';
-    if (enabled) {
-      localStorage.setItem(NOTIFY_KEY, '0');
-      clearTimeout(notifyTimer);
-      setNotifyUI(false);
-      return;
-    }
-    if (!('Notification' in window)) {
-      showToast('Aquest navegador no admet notificacions.');
-      return;
-    }
-    let permission = Notification.permission;
-    if (permission === 'default') {
-      permission = await Notification.requestPermission();
-    }
-    if (permission !== 'granted') {
-      showToast('Cal permetre les notificacions per activar els avisos.');
-      return;
-    }
-    localStorage.setItem(NOTIFY_KEY, '1');
-    setNotifyUI(true);
-    scheduleNextChime();
-    showToast('T\'avisarem cada quart d\'hora mentre l\'app estigui oberta.');
-  }
-
-  notifyBtn.addEventListener('click', toggleNotify);
-
-  if (localStorage.getItem(NOTIFY_KEY) === '1' && 'Notification' in window && Notification.permission === 'granted') {
-    setNotifyUI(true);
-    scheduleNextChime();
-  } else {
-    setNotifyUI(false);
+  const lastFiredAt = new Map(); // alarm id -> ms timestamp, guards against re-firing within the same minute
+  function checkAlarms(now) {
+    if (now.getSeconds() !== 0) return;
+    loadAlarms().forEach((alarm) => {
+      if (!alarm.enabled) return;
+      if (alarm.hour !== now.getHours() || alarm.minute !== now.getMinutes()) return;
+      const last = lastFiredAt.get(alarm.id) || 0;
+      if (now.getTime() - last < 55000) return;
+      lastFiredAt.set(alarm.id, now.getTime());
+      fireAlarm(alarm, now);
+    });
   }
 
   // ---------- Share / copy ----------
@@ -439,25 +589,6 @@
     await copyToClipboard(`${lastPhrase} (${digitalTime(displayNow())})`);
     showToast('Frase copiada!');
   });
-
-  // ---------- Nightstand / kiosk mode ----------
-  const NIGHTSTAND_KEY = 'hora-catalana-nightstand';
-
-  function setNightstand(on) {
-    document.body.classList.toggle('nightstand', on);
-    localStorage.setItem(NIGHTSTAND_KEY, on ? '1' : '0');
-  }
-  nightstandBtn.addEventListener('click', () => setNightstand(true));
-  document.body.addEventListener('click', (e) => {
-    if (document.body.classList.contains('nightstand') && e.target === document.body) {
-      setNightstand(false);
-    }
-  });
-  document.body.addEventListener('dblclick', () => {
-    if (document.body.classList.contains('nightstand')) setNightstand(false);
-  });
-  const urlWantsNightstand = new URLSearchParams(location.search).get('nightstand') === '1';
-  if (urlWantsNightstand || localStorage.getItem(NIGHTSTAND_KEY) === '1') setNightstand(true);
 
   // ---------- Service worker: register + auto-update ----------
   if ('serviceWorker' in navigator) {

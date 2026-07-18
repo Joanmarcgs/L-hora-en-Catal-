@@ -28,6 +28,8 @@
 </div>
 
 <main>
+  <button id="alarms-btn" class="chip-btn alarms-btn" type="button">Alarmes</button>
+
   <svg class="clock-face" viewBox="0 0 200 200" role="group" aria-label="Rellotge analògic, arrossega les agulles per canviar l'hora">
     <circle class="rim" cx="100" cy="100" r="96" />
     <g class="ticks"></g>
@@ -55,12 +57,33 @@
   <div id="date-line" class="date-line"></div>
 
   <div class="actions">
-    <button id="reset-time-btn" class="chip-btn reset-time" type="button" hidden>Hora Actual</button>
-    <button id="notify-toggle" class="chip-btn" type="button" aria-pressed="false">Avisa cada quart</button>
+    <button id="reset-time-btn" class="chip-btn reset-time" type="button" hidden>Torna a l'hora actual</button>
     <button id="share-btn" class="chip-btn" type="button">Comparteix</button>
     <button id="copy-btn" class="chip-btn" type="button">Copia</button>
   </div>
 </main>
+
+<div id="alarms-modal" class="modal-overlay" hidden>
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="alarms-title">
+    <div class="modal-header">
+      <h2 id="alarms-title">Alarmes</h2>
+      <button id="alarms-close" class="icon-btn" type="button" title="Tanca">X</button>
+    </div>
+
+    <ul id="alarms-list" class="alarms-list"></ul>
+    <p id="alarms-empty" class="alarms-empty">Encara no tens cap alarma.</p>
+
+    <div class="alarm-form">
+      <span class="alarm-form-label">Nova alarma</span>
+      <div class="alarm-form-time">
+        <span id="alarm-spin-h" class="digi-seg draggable" title="Arrossega amunt/avall per canviar l'hora">07</span>
+        <span class="digi-seg">:</span>
+        <span id="alarm-spin-m" class="digi-seg draggable" title="Arrossega amunt/avall per canviar els minuts">00</span>
+      </div>
+      <button id="alarm-add-btn" class="chip-btn" type="button">Afegeix alarma</button>
+    </div>
+  </div>
+</div>
 
 <div class="status-row" style="justify-content:center; padding-bottom: 6px;">
   <span id="status-dot" class="status-dot"></span>

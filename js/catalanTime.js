@@ -52,10 +52,16 @@ const QUARTER_LEAD = {
 };
 
 // Minutes where a "tocat/tocats" style qualifier is appended at the very end.
+// "i mig" only has 2 minutes of room before the next landmark starts (unlike
+// the 3-minute exact/tocat/ben-tocat spread the full quarters get), so it
+// only gets the first escalation step: exact, then tocat(s).
 const QUALIFIER = {
   16: 'tocat', 17: 'ben tocat',
+  23: 'tocat',
   31: 'tocats', 32: 'ben tocats',
+  38: 'tocats',
   46: 'tocats', 47: 'ben tocats',
+  53: 'tocats',
 };
 
 const FIFTY_LEAD = {
